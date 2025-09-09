@@ -163,8 +163,17 @@ export const ThreeCanvas = ({ selectedPlanet, onObstacleCountChange }: ThreeCanv
             (roverRef.current.material as THREE.Material).dispose();
         }
 
-        const roverGeometry = new THREE.ConeGeometry(0.05, 0.1, 8);
-        const roverMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        // Create a custom triangle geometry
+        const roverGeometry = new THREE.BufferGeometry();
+        const points = [
+            new THREE.Vector3(0, 0.1, 0),    // Top point
+            new THREE.Vector3(-0.05, 0, 0), // Bottom-left
+            new THREE.Vector3(0.05, 0, 0),  // Bottom-right
+        ];
+        roverGeometry.setFromPoints(points);
+        roverGeometry.computeVertexNormals();
+        
+        const roverMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, side: THREE.DoubleSide });
         const rover = new THREE.Mesh(roverGeometry, roverMaterial);
 
         const position = getCellCenterOnSphere(roverPosition.lat, roverPosition.lon, 1.01, 16);
