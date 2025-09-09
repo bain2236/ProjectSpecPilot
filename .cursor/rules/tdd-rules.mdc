@@ -1,0 +1,72 @@
+---
+description: Rules for an LLM Doing TDD in Python
+globs:
+alwaysApply: true
+---
+
+
+Core TDD protocol
+1. Always Red → Green → Refactor, in that order.
+2. Start from tests. Never propose implementation until you’ve shown a failing test that expresses the requirement.
+3. Smallest possible step. Each cycle covers one tiny behavior. Keep diffs minimal.
+4. One reason to fail. Ensure the failing test fails for the right reason; fix the test before code if it fails for the wrong reason.
+5. No sneaky refactors during Green. Refactoring is a separate step after all tests pass.
+6. Don’t change tests in Refactor (unless the test was objectively incorrect). Behavior must remain identical.
+
+How to format your responses
+1. Structure every delivery as three sections in this order:
+1a. RED (test only): a single failing pytest test (or a very small set) that captures one behavior.
+1b. GREEN (minimal implementation): only the code needed to pass the test.
+1c. REFACTOR (optional): mechanical improvements with unchanged behavior. List the steps and their rationale.
+2. Name files and paths explicitly (e.g., tests/test_rover_turning.py, src/package/module.py).
+3. Include exact run commands (pytest -q, etc.) and expected output (e.g., “1 failed” before GREEN; “1 passed” after GREEN).
+4. Prefix sample commit messages with Red:, Green:, or Refactor:. The commit message format will be: `<Type>: <Overview> - <Detailed Description>`
+
+Python testing conventions (pytest-first)
+1. Use pytest. Prefer plain assert, pytest.raises, @pytest.mark.parametrize.
+2. AAA pattern. Arrange / Act / Assert inside tests; one behavior per test.
+3. Descriptive names. test_<behavior>_<condition>_<expected>().
+4. Deterministic tests. Avoid non-determinism; if randomness is required, seed it in the test.
+5. Fixtures over setup/teardown clutter. Use pytest fixtures for repeated setup; keep them short and obvious.
+6. Mock boundaries only. Prefer fakes over deep mocking. Mock I/O, time, environment, network—not your own domain logic.
+7. Property tests sparingly. Use Hypothesis for invariants or combinatorics; keep strategies readable.
+8. Avoid broad exception catching in code; in tests, assert specific exceptions/messages.
+9. Keep tests fast (<100ms each ideally) and hermetic (no external services or network).
+
+Implementation rules (Green)
+1. Simplest code that passes. No extra branches, no speculative features.
+2. Pure core logic. Keep domain logic pure; push I/O to edges and inject dependencies.
+3. Type hints everywhere. Target Python ≥3.12. Favor dataclasses when helpful; run mypy --strict once code appears.
+4. No premature optimization. Prove a performance issue with a test/benchmark before optimizing.
+5. Meaningful errors. Validate inputs at boundaries; raise specific exceptions with actionable messages.
+
+Refactoring rules
+1. Refactor with tests green. After GREEN, perform mechanical improvements only (rename, extract function, inline, remove duplication).
+2. One refactor per step. Small, reversible changes; keep diffs easy to review.
+3. Improve names & design. Move toward single responsibility and clearer APIs; do not change behavior.
+4. Rerun tests after each micro-refactor. If red, revert or split the step.
+
+Quality gates & tooling
+1. Lint/format/type-check clean before calling a step complete: black, ruff, mypy.
+2. Coverage as a guide, not a goal. Aim ≥90% but don’t write assertionless tests to bump a number.
+3. Pre-commit friendly. Provide/obey a standard pre-commit config for black, ruff, pyupgrade.
+
+Working style for an LLM
+1. Ask for missing constraints before writing tests (inputs, outputs, edge cases, error semantics). Offer sensible defaults if none are given.
+2. Propose the tiniest next test rather than a whole suite; iterate.
+3. Explain trade-offs briefly. When multiple designs pass, prefer the simplest and document why.
+4. Be transparent about assumptions and surface them at the top of RED.
+5. Never paste large blobs of code in GREEN—only what is needed to pass the current RED.
+6. Keep a short journal entry per cycle (time, phase, intent, notes) if asked to maintain docs.
+
+Boundaries & integration
+1. Isolate domain from infrastructure. Use adapters/ports so domain tests don’t involve I/O.
+2. If adding integration tests, label them and keep them separate (tests/integration/), running less frequently.
+3. Clock, randomness, environment must be injectable or patchable to stay deterministic.
+
+Anti-rules (things to avoid)
+1. No test-after code. Don’t write implementation and then backfill tests.
+2. No multi-feature changes in one step.
+3. Don’t weaken tests to make GREEN easier; adjust implementation or split tests instead.
+4. Don’t hide failures with broad except or conditionals that swallow errors.
+5. Don’t rely on global state or singletons in the domain layer.
