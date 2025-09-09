@@ -18,6 +18,7 @@ function App() {
   const [roverStats, setRoverStats] = useState({ x: 0, y: 0, direction: 'N' });
   const [selectedPlanet, setSelectedPlanet] = useState<(Planet & { gridSize: { x: number; y: number }, scale: string })>(solarSystem[3]); // Default to Mars
   const [obstacleCount, setObstacleCount] = useState(0);
+  const [zoomLevel, setZoomLevel] = useState(1.0);
 
   const handleCommand = (command: string) => {
     console.log('Command received:', command);
@@ -49,11 +50,15 @@ function App() {
           <Divider my="sm" />
           <Title order={5}>Planet Selection</Title>
           <PlanetSelector planets={solarSystem} onPlanetSelect={handlePlanetSelect} />
-          <PlanetDetails planet={{...selectedPlanet, obstacleCount}} />
+          <PlanetDetails planet={{...selectedPlanet, obstacleCount, zoomLevel}} />
         </AppShell.Navbar>
 
         <AppShell.Main style={{ height: 'calc(100vh - 60px)', padding: 0 }}>
-          <ThreeCanvas selectedPlanet={selectedPlanet} onObstacleCountChange={setObstacleCount} />
+          <ThreeCanvas 
+            selectedPlanet={selectedPlanet} 
+            onObstacleCountChange={setObstacleCount}
+            onZoomChange={setZoomLevel}
+          />
         </AppShell.Main>
       </AppShell>
     </MantineProvider>

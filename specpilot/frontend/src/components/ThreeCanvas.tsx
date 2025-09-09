@@ -18,6 +18,7 @@ interface ObstaclePosition {
 interface ThreeCanvasProps {
     selectedPlanet: Planet;
     onObstacleCountChange: (count: number) => void;
+    onZoomChange: (zoom: number) => void;
 }
 
 const createGridLines = (radius: number, segments: number) => {
@@ -88,7 +89,7 @@ const getCellCenterOnSphere = (latIndex: number, lonIndex: number, radius: numbe
     return new THREE.Vector3(x, y, z);
 }
 
-export const ThreeCanvas = ({ selectedPlanet, onObstacleCountChange }: ThreeCanvasProps) => {
+export const ThreeCanvas = ({ selectedPlanet, onObstacleCountChange, onZoomChange }: ThreeCanvasProps) => {
     const containerRef = useRef<HTMLDivElement>(null!);
     const sceneRef = useRef(new THREE.Scene());
     const sphereRef = useRef<THREE.Mesh | null>(null);
@@ -101,6 +102,7 @@ export const ThreeCanvas = ({ selectedPlanet, onObstacleCountChange }: ThreeCanv
 
     const [roverPosition, setRoverPosition] = useState<RoverPosition | null>(null);
     const [obstaclePositions, setObstaclePositions] = useState<ObstaclePosition[]>([]);
+    const [targetZoom, setTargetZoom] = useState(1);
     
     // Recalculate positions when planet changes
     useEffect(() => {
@@ -157,6 +159,7 @@ export const ThreeCanvas = ({ selectedPlanet, onObstacleCountChange }: ThreeCanv
         const camera = cameraRef.current;
         if (!roverPosition || !scene || !sphereRef.current || !camera) return;
 
+        // Clean up previous rover
         if (roverRef.current) {
             scene.remove(roverRef.current);
             roverRef.current.geometry.dispose();
@@ -166,9 +169,9 @@ export const ThreeCanvas = ({ selectedPlanet, onObstacleCountChange }: ThreeCanv
         // Create a custom triangle geometry
         const roverGeometry = new THREE.BufferGeometry();
         const points = [
-            new THREE.Vector3(0, 0.1, 0),    // Top point
-            new THREE.Vector3(-0.05, 0, 0), // Bottom-left
-            new THREE.Vector3(0.05, 0, 0),  // Bottom-right
+            new THREE.Vector3(0, 0.5, 0),    // Top point (larger base size)
+            new THREE.Vector3(-0.25, 0, 0), // Bottom-left
+            new THREE.Vector3(0.25, 0, 0),  // Bottom-right
         ];
         roverGeometry.setFromPoints(points);
         roverGeometry.computeVertexNormals();
@@ -192,9 +195,12 @@ export const ThreeCanvas = ({ selectedPlanet, onObstacleCountChange }: ThreeCanv
         headingQuaternion.setFromAxisAngle(surfaceNormal, angle);
         rover.quaternion.multiplyQuaternions(headingQuaternion, rover.quaternion);
         
-        // Scale rover with planet for better visibility
-        const scale = 0.05 + selectedPlanet.radius * 0.05;
+        // Scale rover to a fixed, visible size
+        const scale = 1.0; 
         rover.scale.set(scale, scale, scale);
+
+        console.log('Rover created at position:', position);
+        console.log('Rover scale:', scale);
 
         roverRef.current = rover;
         scene.add(rover);
@@ -203,8 +209,9 @@ export const ThreeCanvas = ({ selectedPlanet, onObstacleCountChange }: ThreeCanv
         const cameraPosition = position.clone().normalize().multiplyScalar(3);
         camera.position.copy(cameraPosition);
         camera.lookAt(position);
+        console.log('Camera positioned at:', cameraPosition, 'looking at:', position);
 
-    }, [roverPosition]);
+    }, [roverPosition, selectedPlanet.radius]); // Rerun when radius changes to rescale
 
     // Update Obstacle Meshes
     useEffect(() => {
@@ -238,7 +245,33 @@ export const ThreeCanvas = ({ selectedPlanet, onObstacleCountChange }: ThreeCanv
             group.add(obstacle);
         });
 
-    }, [obstaclePositions]);
+    }, [obstaclePositions, selectedPlanet.radius]); // Rerun when radius changes to rescale
+
+    // Handle Wheel/Zoom Events
+    useEffect(() => {
+        const handleWheel = (event: WheelEvent) => {
+            console.log('Wheel event fired:', event.deltaY);
+            const minZoom = 0.5 / selectedPlanet.radius;
+            const maxZoom = 5 / selectedPlanet.radius;
+            setTargetZoom(prevZoom => {
+                const newZoom = prevZoom - event.deltaY * 0.005;
+                const clampedZoom = Math.max(minZoom, Math.min(newZoom, maxZoom));
+                console.log('New target zoom:', clampedZoom);
+                return clampedZoom;
+            });
+        };
+
+        const currentRef = containerRef.current;
+        if (currentRef) {
+            currentRef.addEventListener('wheel', handleWheel);
+        }
+
+        return () => {
+            if (currentRef) {
+                currentRef.removeEventListener('wheel', handleWheel);
+            }
+        };
+    }, [selectedPlanet.radius]); // Re-attach listener when planet changes
 
 
     useEffect(() => {
@@ -311,26 +344,26 @@ export const ThreeCanvas = ({ selectedPlanet, onObstacleCountChange }: ThreeCanv
 
         const animate = () => {
             requestAnimationFrame(animate);
+
+            // Smooth zoom
+            if (cameraRef.current) {
+                const camera = cameraRef.current;
+                camera.zoom += (targetZoom - camera.zoom) * 0.1;
+                camera.updateProjectionMatrix();
+                onZoomChange(camera.zoom);
+            }
+
             renderer.render(scene, camera);
         };
 
         animate();
 
-        const handleWheel = (event: WheelEvent) => {
-            camera.zoom -= event.deltaY * 0.01;
-            camera.zoom = Math.max(0.1, Math.min(camera.zoom, 5)); // Clamp zoom
-            camera.updateProjectionMatrix();
-        };
+        window.addEventListener('resize', handleResize);
 
         const currentRef = containerRef.current;
-        currentRef.addEventListener('wheel', handleWheel);
-        window.addEventListener('resize', handleResize);
 
         return () => {
             window.removeEventListener('resize', handleResize);
-            if (currentRef) {
-                currentRef.removeEventListener('wheel', handleWheel);
-            }
             if (currentRef && renderer.domElement) {
                 currentRef.removeChild(renderer.domElement);
             }
