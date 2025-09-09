@@ -16,14 +16,15 @@ const solarSystem: (Planet & { gridSize: { x: number; y: number }, scale: string
 
 function App() {
   const [roverStats, setRoverStats] = useState({ x: 0, y: 0, direction: 'N' });
-  const [selectedPlanet, setSelectedPlanet] = useState<Planet>(solarSystem[3]); // Default to Mars
+  const [selectedPlanet, setSelectedPlanet] = useState<(Planet & { gridSize: { x: number; y: number }, scale: string })>(solarSystem[3]); // Default to Mars
+  const [obstacleCount, setObstacleCount] = useState(0);
 
   const handleCommand = (command: string) => {
     console.log('Command received:', command);
     // TODO: Send command to backend and update roverStats
   };
 
-  const handlePlanetSelect = (planet: Planet) => {
+  const handlePlanetSelect = (planet: (Planet & { gridSize: { x: number; y: number }, scale: string })) => {
     setSelectedPlanet(planet);
     console.log('Selected Planet:', planet.name);
   };
@@ -48,11 +49,11 @@ function App() {
           <Divider my="sm" />
           <Title order={5}>Planet Selection</Title>
           <PlanetSelector planets={solarSystem} onPlanetSelect={handlePlanetSelect} />
-          <PlanetDetails planet={selectedPlanet} />
+          <PlanetDetails planet={{...selectedPlanet, obstacleCount}} />
         </AppShell.Navbar>
 
         <AppShell.Main style={{ height: 'calc(100vh - 60px)', padding: 0 }}>
-          <ThreeCanvas selectedPlanet={selectedPlanet} />
+          <ThreeCanvas selectedPlanet={selectedPlanet} onObstacleCountChange={setObstacleCount} />
         </AppShell.Main>
       </AppShell>
     </MantineProvider>

@@ -6,9 +6,11 @@ export interface Planet {
     radius: number;
 }
 
+type DetailedPlanet = Planet & { gridSize: { x: number; y: number }, scale: string };
+
 interface PlanetSelectorProps {
-    planets: Planet[];
-    onPlanetSelect: (planet: Planet) => void;
+    planets: DetailedPlanet[];
+    onPlanetSelect: (planet: DetailedPlanet) => void;
 }
 
 export const PlanetSelector = ({ planets, onPlanetSelect }: PlanetSelectorProps) => {

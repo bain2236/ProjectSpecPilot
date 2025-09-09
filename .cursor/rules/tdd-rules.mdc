@@ -21,6 +21,8 @@ How to format your responses
 2. Name files and paths explicitly (e.g., tests/test_rover_turning.py, src/package/module.py).
 3. Include exact run commands (pytest -q, etc.) and expected output (e.g., “1 failed” before GREEN; “1 passed” after GREEN).
 4. Prefix sample commit messages with Red:, Green:, or Refactor:. The commit message format will be: `<Type>: <Overview> - <Detailed Description>`
+5. After proposing a RED test, provide the corresponding `Red:` commit message and await confirmation before proceeding to GREEN.
+6. After implementing the GREEN code, provide the corresponding `Green:` commit message.
 
 Python testing conventions (pytest-first)
 1. Use pytest. Prefer plain assert, pytest.raises, @pytest.mark.parametrize.

@@ -1,12 +1,23 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { type Planet } from './PlanetSelector'; // Import the Planet type
 import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 
+interface RoverPosition {
+    lat: number;
+    lon: number;
+}
+
+interface ObstaclePosition {
+    lat: number;
+    lon: number;
+}
+
 interface ThreeCanvasProps {
     selectedPlanet: Planet;
+    onObstacleCountChange: (count: number) => void;
 }
 
 const createGridLines = (radius: number, segments: number) => {
@@ -65,35 +76,173 @@ const createGridLines = (radius: number, segments: number) => {
     return group;
 }
 
-export const ThreeCanvas = ({ selectedPlanet }: ThreeCanvasProps) => {
+const getCellCenterOnSphere = (latIndex: number, lonIndex: number, radius: number, segments: number): THREE.Vector3 => {
+    // Offset by 0.5 to get the center of the grid cell
+    const phi = ((latIndex + 0.5) / segments) * Math.PI;
+    const theta = ((lonIndex + 0.5) / segments) * 2 * Math.PI;
+
+    const x = radius * Math.sin(phi) * Math.cos(theta);
+    const y = radius * Math.cos(phi);
+    const z = radius * Math.sin(phi) * Math.sin(theta);
+
+    return new THREE.Vector3(x, y, z);
+}
+
+export const ThreeCanvas = ({ selectedPlanet, onObstacleCountChange }: ThreeCanvasProps) => {
     const containerRef = useRef<HTMLDivElement>(null!);
     const sceneRef = useRef(new THREE.Scene());
     const sphereRef = useRef<THREE.Mesh | null>(null);
     const gridGroupRef = useRef<THREE.Group | null>(null);
     const gridMaterialRef = useRef<LineMaterial | null>(null);
+    const roverRef = useRef<THREE.Mesh | null>(null);
+    const obstaclesRef = useRef<THREE.Group | null>(null);
+    const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+    const planetGroupRef = useRef<THREE.Group | null>(null);
 
+    const [roverPosition, setRoverPosition] = useState<RoverPosition | null>(null);
+    const [obstaclePositions, setObstaclePositions] = useState<ObstaclePosition[]>([]);
+    
+    // Recalculate positions when planet changes
     useEffect(() => {
-        if (!sphereRef.current || !gridGroupRef.current || !gridMaterialRef.current) return;
+        const segments = 16;
+        const roverStartLat = Math.floor(segments / 2);
+        const roverStartLon = Math.floor(segments / 2);
+        
+        setRoverPosition({ lat: roverStartLat, lon: roverStartLon });
+
+        const numObstacles = Math.floor(segments * segments * 0.1); // 10% of grid cells
+        
+        const possiblePositions = new Set<string>();
+        for (let i = 0; i < segments; i++) {
+            for (let j = 0; j < segments; j++) {
+                possiblePositions.add(`${i},${j}`);
+            }
+        }
+        
+        // Remove rover's starting position from possible obstacle locations
+        possiblePositions.delete(`${roverStartLat},${roverStartLon}`);
+        
+        const newObstacles: ObstaclePosition[] = [];
+        for (let i = 0; i < numObstacles; i++) {
+            const posArray = Array.from(possiblePositions);
+            const randomIndex = Math.floor(Math.random() * posArray.length);
+            const [lat, lon] = posArray[randomIndex].split(',').map(Number);
+            newObstacles.push({ lat, lon });
+            possiblePositions.delete(posArray[randomIndex]);
+        }
+        setObstaclePositions(newObstacles);
+        onObstacleCountChange(newObstacles.length);
+
+    }, [selectedPlanet, onObstacleCountChange]);
+
+    // Update Planet Objects
+    useEffect(() => {
+        if (!sphereRef.current || !gridGroupRef.current || !gridMaterialRef.current || !obstaclesRef.current || !planetGroupRef.current) return;
 
         // Update sphere color
         (sphereRef.current.material as THREE.MeshStandardMaterial).color.set(selectedPlanet.color);
 
         // Update sphere and grid size
         const radius = selectedPlanet.radius;
-        sphereRef.current.scale.set(radius, radius, radius);
-        gridGroupRef.current.scale.set(radius, radius, radius);
+        planetGroupRef.current.scale.set(radius, radius, radius);
         
         // Update line width based on planet radius for better visibility
         gridMaterialRef.current.linewidth = 2 + selectedPlanet.radius * 2;
 
     }, [selectedPlanet]);
 
+    // Update Rover Mesh & Camera
+    useEffect(() => {
+        const scene = sceneRef.current;
+        const camera = cameraRef.current;
+        if (!roverPosition || !scene || !sphereRef.current || !camera) return;
+
+        if (roverRef.current) {
+            scene.remove(roverRef.current);
+            roverRef.current.geometry.dispose();
+            (roverRef.current.material as THREE.Material).dispose();
+        }
+
+        const roverGeometry = new THREE.ConeGeometry(0.05, 0.1, 8);
+        const roverMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const rover = new THREE.Mesh(roverGeometry, roverMaterial);
+
+        const position = getCellCenterOnSphere(roverPosition.lat, roverPosition.lon, 1.01, 16);
+        rover.position.copy(position);
+        
+        // --- Correct Orientation Logic ---
+        // 1. Align the cone's default up-axis (Y) with the sphere's surface normal
+        const surfaceNormal = position.clone().normalize();
+        const up = new THREE.Vector3(0, 1, 0);
+        rover.quaternion.setFromUnitVectors(up, surfaceNormal);
+
+        // 2. Apply a heading rotation to point "North"
+        const headingQuaternion = new THREE.Quaternion();
+        // The angle is calculated to make the rover's "front" point up on the screen initially
+        const angle = Math.atan2(camera.position.x - rover.position.x, camera.position.z - rover.position.z);
+        headingQuaternion.setFromAxisAngle(surfaceNormal, angle);
+        rover.quaternion.multiplyQuaternions(headingQuaternion, rover.quaternion);
+        
+        // Scale rover with planet for better visibility
+        const scale = 0.05 + selectedPlanet.radius * 0.05;
+        rover.scale.set(scale, scale, scale);
+
+        roverRef.current = rover;
+        scene.add(rover);
+
+        // Update camera to look at the rover
+        const cameraPosition = position.clone().normalize().multiplyScalar(3);
+        camera.position.copy(cameraPosition);
+        camera.lookAt(position);
+
+    }, [roverPosition]);
+
+    // Update Obstacle Meshes
+    useEffect(() => {
+        const scene = sceneRef.current;
+        const group = obstaclesRef.current;
+        if (!obstaclePositions.length || !scene || !group) return;
+
+        // Clear old obstacles
+        while (group.children.length) {
+            const child = group.children[0];
+            group.remove(child);
+            if (child instanceof THREE.Mesh) {
+                child.geometry.dispose();
+                (child.material as THREE.Material).dispose();
+            }
+        }
+        
+        obstaclePositions.forEach(pos => {
+            const obstacleGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const obstacleMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
+
+            const position = getCellCenterOnSphere(pos.lat, pos.lon, 1.01, 16);
+            obstacle.position.copy(position);
+            obstacle.lookAt(new THREE.Vector3(0,0,0)); // Orient to sphere center
+            
+            // Scale obstacles with planet
+            const scale = selectedPlanet.radius * 0.05;
+            obstacle.scale.set(scale, scale, scale);
+
+            group.add(obstacle);
+        });
+
+    }, [obstaclePositions]);
+
 
     useEffect(() => {
         const scene = sceneRef.current;
         scene.background = new THREE.Color(0x1a1b1e);
         const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+        cameraRef.current = camera;
         const renderer = new THREE.WebGLRenderer({ antialias: true });
+
+        // Create a group to hold all planet-related objects
+        const planetGroup = new THREE.Group();
+        planetGroupRef.current = planetGroup;
+        scene.add(planetGroup);
 
         const handleResize = () => {
             if (containerRef.current) {
@@ -116,7 +265,11 @@ export const ThreeCanvas = ({ selectedPlanet }: ThreeCanvasProps) => {
         const material = new THREE.MeshStandardMaterial({ color: selectedPlanet.color });
         const sphere = new THREE.Mesh(geometry, material);
         sphereRef.current = sphere; // Store sphere in ref
-        scene.add(sphere);
+        planetGroup.add(sphere);
+
+        // Add Obstacles Group
+        obstaclesRef.current = new THREE.Group();
+        planetGroup.add(obstaclesRef.current);
 
         // Add wireframe grid
         const lineMaterial = new LineMaterial({
@@ -134,7 +287,7 @@ export const ThreeCanvas = ({ selectedPlanet }: ThreeCanvasProps) => {
             }
         });
         gridGroupRef.current = gridGroup;
-        scene.add(gridGroup);
+        planetGroup.add(gridGroup);
         
         if (containerRef.current) {
             const { width, height } = containerRef.current.getBoundingClientRect();
@@ -147,8 +300,6 @@ export const ThreeCanvas = ({ selectedPlanet }: ThreeCanvasProps) => {
         pointLight.position.set(5, 5, 5);
         scene.add(pointLight);
 
-        camera.position.z = 3;
-
         const animate = () => {
             requestAnimationFrame(animate);
             renderer.render(scene, camera);
@@ -156,12 +307,21 @@ export const ThreeCanvas = ({ selectedPlanet }: ThreeCanvasProps) => {
 
         animate();
 
-        window.addEventListener('resize', handleResize);
+        const handleWheel = (event: WheelEvent) => {
+            camera.zoom -= event.deltaY * 0.01;
+            camera.zoom = Math.max(0.1, Math.min(camera.zoom, 5)); // Clamp zoom
+            camera.updateProjectionMatrix();
+        };
 
         const currentRef = containerRef.current;
+        currentRef.addEventListener('wheel', handleWheel);
+        window.addEventListener('resize', handleResize);
 
         return () => {
             window.removeEventListener('resize', handleResize);
+            if (currentRef) {
+                currentRef.removeEventListener('wheel', handleWheel);
+            }
             if (currentRef && renderer.domElement) {
                 currentRef.removeChild(renderer.domElement);
             }
@@ -175,6 +335,19 @@ export const ThreeCanvas = ({ selectedPlanet }: ThreeCanvasProps) => {
                 }
             });
             lineMaterial.dispose();
+            // Also dispose rover and obstacles if they exist
+            if (roverRef.current) {
+                roverRef.current.geometry.dispose();
+                (roverRef.current.material as THREE.Material).dispose();
+            }
+            if (obstaclesRef.current) {
+                obstaclesRef.current.children.forEach(child => {
+                    if (child instanceof THREE.Mesh) {
+                        child.geometry.dispose();
+                        (child.material as THREE.Material).dispose();
+                    }
+                });
+            }
         };
     }, []); // Initial setup runs only once
 

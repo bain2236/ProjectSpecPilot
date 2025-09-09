@@ -3,7 +3,7 @@ import { type Planet } from './PlanetSelector';
 
 // Extend the Planet type to include the new properties
 interface PlanetDetailsProps {
-    planet: Planet & { gridSize: { x: number; y: number }, scale: string };
+    planet: Planet & { gridSize: { x: number; y: number }, scale: string, obstacleCount: number };
 }
 
 const PlanetDetails = ({ planet }: PlanetDetailsProps) => {
@@ -12,6 +12,7 @@ const PlanetDetails = ({ planet }: PlanetDetailsProps) => {
             <Text>Name: {planet.name}</Text>
             <Text>Grid: {planet.gridSize.x} x {planet.gridSize.y}</Text>
             <Text>Scale: {planet.scale}</Text>
+            <Text>Obstacles: {planet.obstacleCount}</Text>
         </Paper>
     );
 };
