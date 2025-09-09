@@ -23,21 +23,7 @@ Demonstrate **Test-Driven Development (TDD)** and **AI‑assisted development** 
 4. **Refactor safely**, leaning on tests for confidence.
 5. **Repeat** for movement and wrapping; **defer obstacles** until the core loop is clear.
 6. **Narrate your AI usage**: why you asked, what you accepted, how you verified.
-
-## Repo layout (docs-only)
-```
-specpilot-docs/
-├─ README.md
-├─ agents.md
-├─ CONTRIBUTING.md
-├─ LICENSE
-└─ docs/
-   ├─ kata-brief.md
-   ├─ demo-script.md
-   ├─ tdd-journal.md
-   ├─ ai-notes.md
-   ├─ decisions.md
-   └─ checklists.md
+ checklists.md
 ```
 
 ## Commit discipline (even in a demo)

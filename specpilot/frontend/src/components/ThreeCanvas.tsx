@@ -102,7 +102,6 @@ export const ThreeCanvas = ({ selectedPlanet, onObstacleCountChange, onZoomChang
 
     const [roverPosition, setRoverPosition] = useState<RoverPosition | null>(null);
     const [obstaclePositions, setObstaclePositions] = useState<ObstaclePosition[]>([]);
-    const [targetZoom, setTargetZoom] = useState(1);
     
     // Recalculate positions when planet changes
     useEffect(() => {
@@ -196,7 +195,7 @@ export const ThreeCanvas = ({ selectedPlanet, onObstacleCountChange, onZoomChang
         rover.quaternion.multiplyQuaternions(headingQuaternion, rover.quaternion);
         
         // Scale rover to a fixed, visible size
-        const scale = 1.0; 
+        const scale = 1.0;
         rover.scale.set(scale, scale, scale);
 
         console.log('Rover created at position:', position);
@@ -250,15 +249,16 @@ export const ThreeCanvas = ({ selectedPlanet, onObstacleCountChange, onZoomChang
     // Handle Wheel/Zoom Events
     useEffect(() => {
         const handleWheel = (event: WheelEvent) => {
-            console.log('Wheel event fired:', event.deltaY);
+            if (!cameraRef.current) return;
+            const camera = cameraRef.current;
+            
             const minZoom = 0.5 / selectedPlanet.radius;
             const maxZoom = 5 / selectedPlanet.radius;
-            setTargetZoom(prevZoom => {
-                const newZoom = prevZoom - event.deltaY * 0.005;
-                const clampedZoom = Math.max(minZoom, Math.min(newZoom, maxZoom));
-                console.log('New target zoom:', clampedZoom);
-                return clampedZoom;
-            });
+            
+            const newZoom = camera.zoom - event.deltaY * 0.005;
+            camera.zoom = Math.max(minZoom, Math.min(newZoom, maxZoom));
+            camera.updateProjectionMatrix();
+            onZoomChange(camera.zoom);
         };
 
         const currentRef = containerRef.current;
@@ -271,7 +271,7 @@ export const ThreeCanvas = ({ selectedPlanet, onObstacleCountChange, onZoomChang
                 currentRef.removeEventListener('wheel', handleWheel);
             }
         };
-    }, [selectedPlanet.radius]); // Re-attach listener when planet changes
+    }, [selectedPlanet.radius, onZoomChange]); // Re-attach listener when planet changes
 
 
     useEffect(() => {
@@ -344,15 +344,6 @@ export const ThreeCanvas = ({ selectedPlanet, onObstacleCountChange, onZoomChang
 
         const animate = () => {
             requestAnimationFrame(animate);
-
-            // Smooth zoom
-            if (cameraRef.current) {
-                const camera = cameraRef.current;
-                camera.zoom += (targetZoom - camera.zoom) * 0.1;
-                camera.updateProjectionMatrix();
-                onZoomChange(camera.zoom);
-            }
-
             renderer.render(scene, camera);
         };
 
