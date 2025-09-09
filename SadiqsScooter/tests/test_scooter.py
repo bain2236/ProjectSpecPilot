@@ -10,11 +10,12 @@ def test_hired_scooter_cannot_be_hired_again():
     """
     # Arrange
     scooter = Scooter()
-    scooter.hire()
+    person = Person(name="Sadiq")
+    scooter.hire(person)
 
     # Act & Assert
     with pytest.raises(ScooterHiredError, match="Scooter is already hired."):
-        scooter.hire()
+        scooter.hire(person)
 
 
 def test_hire_scooter_assigns_hirer():
